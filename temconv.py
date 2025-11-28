@@ -3,15 +3,19 @@ from abc import ABC, abstractmethod # Import abstract method.
 from decimal import Decimal, getcontext # Precise floats using strings.
 getcontext().prec = 23 # Set internal decimal precision.
 
-num = Decimal # Shorthand for calling Demica().
-ROUNDING = Decimal("0.01") # Define how much to round visually.
+num = Decimal # Shorthand for calling Decimal().
+def quant(x): # Define how much to round visually.
+    return x.quantize(num("0.01"))
 
-unit_list = ("\n" # List of units to show.
+unit_list = ( # List of units to show.
 # Temperature.
-"C (Celsius)\n"       "F (Fahrenheit)\n"    "K (Kelvin)\n"
-
+"C (Celsius)\n"
+"F (Fahrenheit)\n"
+"K (Kelvin)\n"
 # Distance.
-"KM (Kilometer)\n"    "LK (Leuk)\n"         "MI (Mile)\n"
+"KM (Kilometer)\n"
+"LK (Leuk)\n"
+"MI (Mile)"
 )
 
 # 1st pattern, "Strategy". Abstract base for conversion strategies.
@@ -64,9 +68,8 @@ class UnitConverter:
         strategy = ConverterFactory.get_strategy(from_unit, to_unit)
         if not strategy:
             raise ValueError("\033c" "Invalid conversion.")
-        # Compute, round, store and return.
-        raw_result = strategy.convert(value)
-        result = raw_result.quantize(ROUNDING)
+        # Compute, store and return.
+        result = strategy.convert(value)
         self.history.append((value, from_unit, result, to_unit))
         return result
 
@@ -75,28 +78,48 @@ class UnitConverter:
 def main():
     converter = UnitConverter()
 
+    class RequestExit(Exception):
+        pass
+
+    def get_raw(prompt):
+        user_input = input(prompt)
+        if user_input.strip().lower() in ("exit", "quit"):
+            raise RequestExit
+        return user_input
+
     # Normalizes input to reduce redundancy.
     def unit(prompt):
-        return input(prompt).strip().upper()
+        return get_raw(prompt).strip().upper()
 
     while 1:
         try:
-            # Read value using Decimal().
-            value = num(input("\033c" "Value:" "\n> "))
-            from_unit = unit("\033c" "From:" f"{unit_list}" "> ")
-            to_unit = unit("\033c" "To:" f"{unit_list}" "> ")
-            # Displays result.
-            result = converter.convert(value, from_unit, to_unit)
-            print("\033c" "Result:", result.quantize(ROUNDING), to_unit)
-        except Exception as error: # Catches and displays errors.
-            print(error)
-        if input("Continue? (y/n):" "\n> ").lower() != 'y':
+            try:
+                # Read value using Decimal().
+                raw_value = get_raw("\033c" "Value:" "\n> ")
+                value = num(raw_value)
+                from_unit = unit("\033c" "From:\n" f"{unit_list}" "\n> ")
+                to_unit = unit("\033c" "To:\n" f"{unit_list}" "\n> ")
+                # Displays result.
+                result = converter.convert(value, from_unit, to_unit)
+                print("\033c" "Result:", quant(result), to_unit)
+            except RequestExit:
+                break
+            except Exception: # Catches and displays errors.
+                print("\033c" "Invalid input.")
+            try:
+                get_raw("Press any key to continue..." "\n> ")
+            except RequestExit:
+                break
+        except KeyboardInterrupt:
             break
 
-    # Print history on exit.
-    print("\033c" "History:")
-    for value, from_unit, result, to_unit in converter.history:
-        print(f"{value} {from_unit} > {result} {to_unit}")
+    # Print history on exit if it exists.
+    if converter.history:
+        print("\033c" "History:")
+        for value, from_unit, result, to_unit in converter.history:
+            print(f"{value} {from_unit} > {quant(result)} {to_unit}")
+    else:
+        print("\033c", end="")
 
 # Program entry point, preserves hierarchical OOP structure.
 if __name__ == "__main__":
